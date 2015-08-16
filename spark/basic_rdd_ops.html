@@ -1,0 +1,214 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Basic RDD Operations &mdash; Learning Notes 0.0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="Learning Notes 0.0.1 documentation" href="../index.html" />
+    <link rel="up" title="Learning Apache Spark" href="index.html" />
+    <link rel="next" title="Working with Key-Value Pairs" href="work_with_kv.html" />
+    <link rel="prev" title="Introduction to Apache Spark" href="intro_apache_spark.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="basic-rdd-operations">
+<h1>Basic RDD Operations<a class="headerlink" href="#basic-rdd-operations" title="Permalink to this headline">¶</a></h1>
+<p>In this section, we introduce some basic operations provided by RDDs. These operations could be
+categorized into <em>transformations</em> and <em>actions</em>:</p>
+<ul class="simple">
+<li><em>transformations</em>: create a new RDD from an existing one, and</li>
+<li><em>actions</em>: return a value to the driver program after running a computation on the RDD.</li>
+</ul>
+<p>For example, <code class="docutils literal"><span class="pre">map</span></code> is a <em>transformation</em> passing each element in the given dataset to a function
+and returning a new RDD embracing the results. On the other hand, <code class="docutils literal"><span class="pre">reduce</span></code> is an <em>action</em> that
+aggregates all the elements of the RDD using a user-defined function and returns its output to the
+driver program (although there is also a parallel <code class="docutils literal"><span class="pre">reduceByKey</span></code> that returns a distributed
+dataset).</p>
+<p>All <em>transformations</em> in Spark are <strong>lazy</strong>, in that they do not compute their results right
+away. Instead, they just remember the transformations applied to some base dataset (e.g. a file).
+The <em>transformations</em> are only computed when an <em>action</em> requires a result to be returned to the
+driver program. This design enables Spark to run more efficiently – for example, we can realize
+that a dataset created through <code class="docutils literal"><span class="pre">map</span></code> will be used in a <code class="docutils literal"><span class="pre">reduce</span></code> and return only the result of
+the <code class="docutils literal"><span class="pre">reduce</span></code> to the driver, rather than the larger mapped dataset.</p>
+<p>By default, each transformed RDD may be recomputed each time you run an action on it. However, you
+may also persist an RDD in memory using the <code class="docutils literal"><span class="pre">persist</span></code> (or <code class="docutils literal"><span class="pre">cache</span></code>) method, in which case Spark
+will keep the elements around on the cluster for much faster access the next time you query it.
+There is also support for persisting RDDs on disk, or replicated across multiple nodes.</p>
+<p>See the <a class="reference external" href="http://spark.apache.org/docs/latest/programming-guide.html#transformations">common transformations</a> and the <a class="reference external" href="http://spark.apache.org/docs/latest/programming-guide.html#actions">common actions</a> supported by Spark.</p>
+<div class="section" id="using-map-and-reduce">
+<h2>Using map() and reduce()<a class="headerlink" href="#using-map-and-reduce" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal"><span class="pre">map</span></code> and <code class="docutils literal"><span class="pre">reduce</span></code> are two of the most fundamental functions when using Spark to process
+dataset. <code class="docutils literal"><span class="pre">reduce</span></code> currently reduces partitions locally.</p>
+<p>Here is a simple example we used to demonstrate the <code class="docutils literal"><span class="pre">map</span></code> and the <code class="docutils literal"><span class="pre">reduce</span></code> function. A
+teacher records scores of Math, English and Chinese for each student into a csv file. Now that the
+teacher would like to calculate the average of each subject in the end of a semester. In this case,
+we can use <code class="docutils literal"><span class="pre">map</span></code> and <code class="docutils literal"><span class="pre">reduce</span></code> in Spark to achieve it. The following are two examples for
+deriving the same result. While the first example is simpler, the second one is more descriptive.</p>
+<p>Example 1:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">pyspark</span> <span class="kn">import</span> <span class="n">SparkConf</span><span class="p">,</span> <span class="n">SparkContext</span>
+
+<span class="n">APPNAME</span> <span class="o">=</span> <span class="s">&#39;GeorgeApp&#39;</span>
+
+<span class="c"># strdata contains a list of strings</span>
+<span class="n">strdata</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;John, 89, 66, 88&quot;</span><span class="p">,</span> <span class="s">&quot;Mary, 75, 60, 78&quot;</span><span class="p">,</span> <span class="s">&quot;George, 82, 86, 90&quot;</span><span class="p">]</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">SparkConf</span><span class="p">()</span><span class="o">.</span><span class="n">setAppName</span><span class="p">(</span><span class="n">APPNAME</span><span class="p">)</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span><span class="p">)</span>
+
+    <span class="c"># generate an RDD from strdata</span>
+    <span class="n">rdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">parallelize</span><span class="p">(</span><span class="n">strdata</span><span class="p">)</span>
+
+    <span class="c"># 1. the map function extracts all scores for each element.</span>
+    <span class="c"># 2. the reduce function sums up scores and counts by each subject</span>
+    <span class="c">#    and returns a tuple object as the result.</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">rdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">line</span><span class="p">:</span> <span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">1</span><span class="p">]))</span> \
+                <span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                      <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                      <span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                                      <span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;Averages:&quot;</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="s">Math = </span><span class="si">%3.2f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="mi">3</span><span class="p">],))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="s">English = </span><span class="si">%3.2f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="mi">3</span><span class="p">],))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="s">Chinese = </span><span class="si">%3.2f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="mi">3</span><span class="p">],))</span>
+
+    <span class="n">sc</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Example 2:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">pyspark</span> <span class="kn">import</span> <span class="n">SparkConf</span><span class="p">,</span> <span class="n">SparkContext</span>
+
+<span class="n">APPNAME</span> <span class="o">=</span> <span class="s">&#39;GeorgeApp&#39;</span>
+
+<span class="c"># strdata contains a list of strings</span>
+<span class="n">strdata</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;John, 89, 66, 88&quot;</span><span class="p">,</span> <span class="s">&quot;Mary, 75, 60, 78&quot;</span><span class="p">,</span> <span class="s">&quot;George, 82, 86, 90&quot;</span><span class="p">]</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">SparkConf</span><span class="p">()</span><span class="o">.</span><span class="n">setAppName</span><span class="p">(</span><span class="n">APPNAME</span><span class="p">)</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span><span class="p">)</span>
+
+    <span class="c"># generate an RDD from strdata</span>
+    <span class="n">rdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">parallelize</span><span class="p">(</span><span class="n">strdata</span><span class="p">)</span>
+
+    <span class="c"># 1. the first map function extracts all scores for each element.</span>
+    <span class="c"># 2. the second map function forms a dictionary object for each element</span>
+    <span class="c">#    generated from the previous map function.</span>
+    <span class="c"># 3. the final reduce function sums up scores and counts by each subject</span>
+    <span class="c">#    and returns a dictionary object as the result.</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">rdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">line</span><span class="p">:</span> <span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]))</span> \
+                <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">lst</span><span class="p">:</span> <span class="p">{</span><span class="s">&quot;Math&quot;</span><span class="p">:</span> <span class="n">lst</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                  <span class="s">&quot;English&quot;</span><span class="p">:</span> <span class="n">lst</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                  <span class="s">&quot;Chinese&quot;</span><span class="p">:</span> <span class="n">lst</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                                  <span class="s">&quot;count&quot;</span><span class="p">:</span> <span class="mi">1</span> <span class="p">})</span> \
+                <span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="p">{</span><span class="s">&quot;Math&quot;</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s">&quot;Math&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="s">&quot;Math&quot;</span><span class="p">],</span>
+                                      <span class="s">&quot;English&quot;</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s">&quot;English&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="s">&quot;English&quot;</span><span class="p">],</span>
+                                      <span class="s">&quot;Chinese&quot;</span><span class="p">:</span><span class="n">x</span><span class="p">[</span><span class="s">&quot;Chinese&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="s">&quot;Chinese&quot;</span><span class="p">],</span>
+                                      <span class="s">&quot;count&quot;</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s">&quot;count&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="s">&quot;count&quot;</span><span class="p">]})</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;Averages:&quot;</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="s">Math = </span><span class="si">%3.2f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s">&quot;Math&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="s">&quot;count&quot;</span><span class="p">],))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="s">English = </span><span class="si">%3.2f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s">&quot;English&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="s">&quot;count&quot;</span><span class="p">],))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\t</span><span class="s">Chinese = </span><span class="si">%3.2f</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s">&quot;Chinese&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">result</span><span class="p">[</span><span class="s">&quot;count&quot;</span><span class="p">],))</span>
+
+    <span class="n">sc</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Basic RDD Operations</a><ul>
+<li><a class="reference internal" href="#using-map-and-reduce">Using map() and reduce()</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Learning Apache Spark</a><ul>
+      <li>Previous: <a href="intro_apache_spark.html" title="previous chapter">Introduction to Apache Spark</a></li>
+      <li>Next: <a href="work_with_kv.html" title="next chapter">Working with Key-Value Pairs</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/spark/basic_rdd_ops.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, George T. C. Lai.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+      |
+      <a href="../_sources/spark/basic_rdd_ops.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

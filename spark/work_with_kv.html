@@ -1,0 +1,196 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Working with Key-Value Pairs &mdash; Learning Notes 0.0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="Learning Notes 0.0.1 documentation" href="../index.html" />
+    <link rel="up" title="Learning Apache Spark" href="index.html" />
+    <link rel="next" title="SQLContext and DataFrame" href="sqlcontext.html" />
+    <link rel="prev" title="Basic RDD Operations" href="basic_rdd_ops.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="working-with-key-value-pairs">
+<h1>Working with Key-Value Pairs<a class="headerlink" href="#working-with-key-value-pairs" title="Permalink to this headline">¶</a></h1>
+<p>Before working with key-value pairs, we need to generate an RDD containing a list of key-value
+pairs, i.e., an RDD with a list of (K, V) tuples, denoted by RDD[(K, V)]. In general, K is an
+integer or string and V could be any object which is useful for us to derive the desired results.</p>
+<div class="section" id="the-relationship-among-aggregatebykey-reducebykey-and-combinebykey">
+<h2>The Relationship Among aggregateByKey(), reduceByKey(), and combineByKey()<a class="headerlink" href="#the-relationship-among-aggregatebykey-reducebykey-and-combinebykey" title="Permalink to this headline">¶</a></h2>
+<p>There are three main operators for us to aggregate values in an RDD: <code class="docutils literal"><span class="pre">aggregateByKey</span></code>,
+<code class="docutils literal"><span class="pre">reduceByKey</span></code>, and <code class="docutils literal"><span class="pre">combineByKey</span></code>. These operators are capable of deriving exactly the same
+results from an identical RDD.</p>
+<p><code class="docutils literal"><span class="pre">combineByKey</span></code> is more general then <code class="docutils literal"><span class="pre">aggregateByKey</span></code>. Actually, the implementation of
+<code class="docutils literal"><span class="pre">aggregateByKey</span></code>, <code class="docutils literal"><span class="pre">reduceByKey</span></code> and <code class="docutils literal"><span class="pre">groupByKey</span></code> is achieved by <code class="docutils literal"><span class="pre">combineByKey</span></code>.
+<code class="docutils literal"><span class="pre">aggregateByKey</span></code> is similar to <code class="docutils literal"><span class="pre">reduceByKey</span></code> but you can provide initial values when
+performing aggregation.</p>
+<p>As the name suggests, <code class="docutils literal"><span class="pre">aggregateByKey</span></code> is suitable for aggregating values by keys, example
+aggregations such as <strong>sum</strong>, <strong>average</strong>, etc. The rule here is that the extra computation spent
+for map side combine can reduce the size sent out to other nodes and driver. If your function has
+satisfied this rule, you probably should use <code class="docutils literal"><span class="pre">aggregateByKey</span></code>.</p>
+<p><code class="docutils literal"><span class="pre">combineByKey</span></code> is more general and flexible for us to specify whether we would like to
+perform map side combine. However, it is more complex to use. At minimum, you need to implement
+three functions: <code class="docutils literal"><span class="pre">createCombiner</span></code>, <code class="docutils literal"><span class="pre">mergeValue</span></code>, <code class="docutils literal"><span class="pre">mergeCombiners</span></code>.</p>
+</div>
+<div class="section" id="using-aggregatebykey">
+<h2>Using aggregateByKey()<a class="headerlink" href="#using-aggregatebykey" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal"><span class="pre">aggregateByKey()</span></code> used to aggregate the values for each key.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">aggregateByKey</span><span class="p">(</span><span class="n">zeroValue</span><span class="p">,</span> <span class="n">seqFunc</span><span class="p">,</span> <span class="n">combFunc</span><span class="p">,</span> <span class="n">numPartitions</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Aggregate the values for each key, using given combine functions and a neutral &#8220;zero value&#8221;.
+This function can return a different result type, U, than the type of the values in this RDD, V.
+Thus, we need one operation for merging a V into a U and one operation for merging two U&#8217;s, The
+former operation is used for merging values within a partition, and the latter is used for merging
+values between partitions. To avoid memory allocation, both of these functions are allowed to
+modify and return their first argument instead of creating a new U.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># we use (0, 0) as the zeroValue, the former element indicates sum and the latter is the count.</span>
+<span class="n">aggregateByKey</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">value</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="using-reducebykey">
+<h2>Using reduceByKey()<a class="headerlink" href="#using-reducebykey" title="Permalink to this headline">¶</a></h2>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">dataList</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;apache&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s">&quot;www&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s">&quot;104&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s">&quot;plus&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;spark&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s">&quot;com&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s">&quot;com&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s">&quot;tw&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s">&quot;tw&quot;</span><span class="p">)]</span>
+<span class="n">dataRdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">parallelize</span><span class="p">(</span><span class="n">dataList</span><span class="p">)</span>
+<span class="n">dataRdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">list</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">])))</span><span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="using-combinebykey">
+<h2>Using combineByKey()<a class="headerlink" href="#using-combinebykey" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal"><span class="pre">combineByKey()</span></code> is a generic function to combine the elements for each key using a custom set
+of aggregation functions.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">combineByKey</span><span class="p">(</span><span class="n">createCombiner</span><span class="p">,</span> <span class="n">mergeValue</span><span class="p">,</span> <span class="n">mergeCombiners</span><span class="p">,</span> <span class="n">numPartitions</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This function turns an RDD[(K, V)] into a result of type RDD[(K, C)], for a “combined type” C.
+Note that V and C can be different – for example, one might group an RDD of type (Int, Int) into
+an RDD of type (Int, List[Int]).</p>
+<p>Three functions need to be specified for <code class="docutils literal"><span class="pre">combineByKey()</span></code>:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">createCombiner</span></code>, which turns a V into a C (e.g., creates a one-element list), we may treat it
+as the constructor of <code class="docutils literal"><span class="pre">combineByKey()</span></code> for constructing a combiner.</li>
+<li><code class="docutils literal"><span class="pre">mergeValue</span></code>, to merge a V into a C (e.g., adds it to the end of a list), this function is
+called when a new value comes into a combiner.</li>
+<li><code class="docutils literal"><span class="pre">mergeCombiners</span></code>, to combine two C’s into a single one. this function is called in the final
+stage of <code class="docutils literal"><span class="pre">combineByKey</span></code> for merging two combiners.</li>
+</ul>
+<p>The first example is an implementation of <code class="docutils literal"><span class="pre">reduceByKey</span></code> by means of <code class="docutils literal"><span class="pre">combineByKey</span></code>. That is,
+we try to use combineByKey to achieve the same results as <code class="docutils literal"><span class="pre">reduceByKey</span></code>.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">dataRdd</span><span class="o">.</span><span class="n">combineByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="p">[</span><span class="n">value</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The second example is aimed at calculating averages for different keys.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">dataList</span> <span class="o">=</span> <span class="p">[(</span><span class="s">&quot;apache&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s">&quot;spark&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s">&quot;104&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s">&quot;com&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s">&quot;104&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s">&quot;spark&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]</span>
+<span class="n">dataRdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">parallelize</span><span class="p">(</span><span class="n">dataRdd</span><span class="p">)</span>
+<span class="n">tmpRdd</span> <span class="o">=</span> <span class="n">dataRdd</span><span class="o">.</span><span class="n">combineByKey</span><span class="p">(</span><span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+                              <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">value</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+                              <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+<span class="n">tmpRdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="nb">sum</span><span class="p">,</span> <span class="n">count</span><span class="p">)):</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">sum</span> <span class="o">/</span> <span class="p">(</span><span class="n">count</span> <span class="o">*</span> <span class="mf">1.0</span><span class="p">)))</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+
+<span class="p">[(</span><span class="s">&#39;com&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="p">(</span><span class="s">&#39;spark&#39;</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">),</span> <span class="p">(</span><span class="s">&#39;apache&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="p">(</span><span class="s">&#39;104&#39;</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)]</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Working with Key-Value Pairs</a><ul>
+<li><a class="reference internal" href="#the-relationship-among-aggregatebykey-reducebykey-and-combinebykey">The Relationship Among aggregateByKey(), reduceByKey(), and combineByKey()</a></li>
+<li><a class="reference internal" href="#using-aggregatebykey">Using aggregateByKey()</a></li>
+<li><a class="reference internal" href="#using-reducebykey">Using reduceByKey()</a></li>
+<li><a class="reference internal" href="#using-combinebykey">Using combineByKey()</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Learning Apache Spark</a><ul>
+      <li>Previous: <a href="basic_rdd_ops.html" title="previous chapter">Basic RDD Operations</a></li>
+      <li>Next: <a href="sqlcontext.html" title="next chapter">SQLContext and DataFrame</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/spark/work_with_kv.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, George T. C. Lai.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+      |
+      <a href="../_sources/spark/work_with_kv.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

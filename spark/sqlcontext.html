@@ -1,0 +1,247 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>SQLContext and DataFrame &mdash; Learning Notes 0.0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="Learning Notes 0.0.1 documentation" href="../index.html" />
+    <link rel="up" title="Learning Apache Spark" href="index.html" />
+    <link rel="next" title="Learning Apache Zeppelin" href="../zeppelin/index.html" />
+    <link rel="prev" title="Working with Key-Value Pairs" href="work_with_kv.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="sqlcontext-and-dataframe">
+<h1>SQLContext and DataFrame<a class="headerlink" href="#sqlcontext-and-dataframe" title="Permalink to this headline">¶</a></h1>
+<p><code class="docutils literal"><span class="pre">SQLContext</span></code> plays a key role for manipulating <code class="docutils literal"><span class="pre">DataFrame</span></code> in Apache Spark. It is able to read
+from different sources, including <strong>RDD</strong>, <strong>list</strong> in Python, <strong>pandas.DataFrame</strong> , or JSON files,
+so as to construct the corresponding <strong>distributed</strong> <code class="docutils literal"><span class="pre">DataFrame</span></code> for further data manipulation.</p>
+<div class="section" id="construct-distributed-dataframe-from-sqlcontext">
+<h2>Construct Distributed DataFrame from SQLContext<a class="headerlink" href="#construct-distributed-dataframe-from-sqlcontext" title="Permalink to this headline">¶</a></h2>
+<p>Herein, we demonstrate three fashions for transforming different data sources into <code class="docutils literal"><span class="pre">DataFrame</span></code>.</p>
+<ul>
+<li><p class="first"><code class="docutils literal"><span class="pre">jsonRDD()</span></code>: Transforming an <strong>RDD</strong> with one JSON object per string into distributed
+<code class="docutils literal"><span class="pre">DataFrame</span></code>.</p>
+<p>When an <strong>RDD</strong> stores one JSON object per string, we can construct the corresponding
+<code class="docutils literal"><span class="pre">DataFrame</span></code> by means of <code class="docutils literal"><span class="pre">SQLContext.jsonRDD()</span></code> function.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">pyspark</span> <span class="kn">import</span> <span class="n">SparkConf</span><span class="p">,</span> <span class="n">SparkContext</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql</span> <span class="kn">import</span> <span class="n">SQLContext</span><span class="p">,</span> <span class="n">DataFrame</span>
+
+<span class="n">APPNAME</span> <span class="o">=</span> <span class="s">&#39;SQLContext_Example&#39;</span>
+<span class="n">json_data</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;{&#39;name&#39;: &#39;John&#39;, &#39;Math&#39;: 60, &#39;English&#39;: 68, &#39;Chinese&#39;: 78}&quot;</span><span class="p">,</span>
+             <span class="s">&quot;{&#39;name&#39;: &#39;Mary&#39;, &#39;Math&#39;: 72, &#39;English&#39;: 56, &#39;Chinese&#39;: 98}&quot;</span><span class="p">]</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">SparkConf</span><span class="p">()</span><span class="o">.</span><span class="n">setAppName</span><span class="p">(</span><span class="n">APPNAME</span><span class="p">)</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span><span class="p">)</span>
+    <span class="n">sqlContext</span> <span class="o">=</span> <span class="n">SQLContext</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+
+    <span class="n">rdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">parallelize</span><span class="p">(</span><span class="n">json_data</span><span class="p">)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">sqlContext</span><span class="o">.</span><span class="n">jsonRDD</span><span class="p">(</span><span class="n">rdd</span><span class="p">)</span>
+
+    <span class="n">df</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first"><code class="docutils literal"><span class="pre">createDataFrame()</span></code>: Transforming an <strong>RDD</strong> of <strong>tuple</strong>/<strong>list</strong>, <strong>list</strong> in Python or
+<strong>pandas.DataFrame</strong> into <code class="docutils literal"><span class="pre">DataFrame</span></code>.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">pyspark</span> <span class="kn">import</span> <span class="n">SparkConf</span><span class="p">,</span> <span class="n">SparkContext</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql</span> <span class="kn">import</span> <span class="n">SQLContext</span><span class="p">,</span> <span class="n">DataFrame</span>
+
+<span class="n">APPNAME</span> <span class="o">=</span> <span class="s">&#39;SQLContext_Example&#39;</span>
+<span class="n">json_data</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;{&#39;name&#39;: &#39;John&#39;, &#39;Math&#39;: 60, &#39;English&#39;: 68, &#39;Chinese&#39;: 78}&quot;</span><span class="p">,</span>
+             <span class="s">&quot;{&#39;name&#39;: &#39;Mary&#39;, &#39;Math&#39;: 72, &#39;English&#39;: 56, &#39;Chinese&#39;: 98}&quot;</span><span class="p">]</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">SparkConf</span><span class="p">()</span><span class="o">.</span><span class="n">setAppName</span><span class="p">(</span><span class="n">APPNAME</span><span class="p">)</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span><span class="p">)</span>
+    <span class="n">sqlContext</span> <span class="o">=</span> <span class="n">SQLContext</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+
+    <span class="c"># we use map() function to get a list of dictionary objects.</span>
+    <span class="c"># note that we can also transform the list into an RDD, but</span>
+    <span class="c"># we don&#39;t intend to do it here.</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">,</span> <span class="n">json_data</span><span class="p">)</span>
+
+    <span class="c"># create the corresponding DataFrame to the list of dictionary objects</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">sqlContext</span><span class="o">.</span><span class="n">createDataFrame</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="n">df</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Note that the <code class="docutils literal"><span class="pre">SQLContext.createDataFrame(rdd)</span></code> tries to infer the schema of the given rdd
+object. When passing the <code class="docutils literal"><span class="pre">json_data</span></code> or an <strong>RDD</strong> derived from it to <code class="docutils literal"><span class="pre">createDataFrame()</span></code>,
+we will get the following error.</p>
+<div class="highlight-python"><div class="highlight"><pre>TypeError: Can not infer schema for type: &lt;type &#39;str&#39;&gt;
+</pre></div>
+</div>
+<p>If that is the case, we can use the fashion introduced previously, i.e.,
+<code class="docutils literal"><span class="pre">SQLContext.jsonRDD(rdd)</span></code>. Or we can generate an RDD of <strong>Row</strong>, or <strong>namedtuple</strong>, or
+<strong>dict</strong> and pass it to the <code class="docutils literal"><span class="pre">createDataFrame()</span></code>.</p>
+</li>
+<li><p class="first">Generating the distributed <code class="docutils literal"><span class="pre">DataFrame</span></code> corresponding to a given file.</p>
+<p>Apart from generating the distributed <code class="docutils literal"><span class="pre">DataFrame</span></code> from different <strong>RDD</strong>s or objects, we can
+also generate it from files of <strong>JSON</strong> format. In doing so, we need to read data by means of
+<code class="docutils literal"><span class="pre">DataFrameReader</span></code> which can be obtained from <code class="docutils literal"><span class="pre">SQLContext.read</span></code>.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">pyspark</span> <span class="kn">import</span> <span class="n">SparkConf</span><span class="p">,</span> <span class="n">SparkContext</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql</span> <span class="kn">import</span> <span class="n">SQLContext</span><span class="p">,</span> <span class="n">DataFrame</span>
+
+<span class="n">APPNAME</span> <span class="o">=</span> <span class="s">&#39;SQLContext_Example&#39;</span>
+<span class="n">FILE_PATH</span> <span class="o">=</span> <span class="s">&#39;scores.json&#39;</span>
+<span class="n">json_data</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;{&#39;name&#39;: &#39;John&#39;, &#39;Math&#39;: 60, &#39;English&#39;: 68, &#39;Chinese&#39;: 78}&quot;</span><span class="p">,</span>
+             <span class="s">&quot;{&#39;name&#39;: &#39;Mary&#39;, &#39;Math&#39;: 72, &#39;English&#39;: 56, &#39;Chinese&#39;: 98}&quot;</span><span class="p">]</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">SparkConf</span><span class="p">()</span><span class="o">.</span><span class="n">setAppName</span><span class="p">(</span><span class="n">APPNAME</span><span class="p">)</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span><span class="p">)</span>
+    <span class="n">sqlContext</span> <span class="o">=</span> <span class="n">SQLContext</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+
+    <span class="c"># loads a JSON file, returning the result as a DataFrame.</span>
+    <span class="c"># when loading a parquet file, we can use the following code</span>
+    <span class="c"># df = sqlContext.read.parquet(FILE_PATH)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">sqlContext</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">json</span><span class="p">(</span><span class="n">FILE_PATH</span><span class="p">)</span>
+
+    <span class="n">df</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Similarly, we can generate <strong>DataFrame</strong> from a <a class="reference external" href="https://parquet.apache.org/">Parquet</a> file by
+means of <code class="docutils literal"><span class="pre">DataFrameReader</span></code> with <code class="docutils literal"><span class="pre">parquet(FILE_PATH)</span></code>.</p>
+</li>
+</ul>
+</div>
+<div class="section" id="save-dataframe-to-files">
+<h2>Save DataFrame to Files<a class="headerlink" href="#save-dataframe-to-files" title="Permalink to this headline">¶</a></h2>
+<p>Saving a DataFrame to file is very intuitive and simple. We first obtain DataFrameWriter by means
+of <code class="docutils literal"><span class="pre">DataFrame.write</span></code> and then call its <code class="docutils literal"><span class="pre">save()</span></code> function. In the following example, the
+argument <code class="docutils literal"><span class="pre">mode</span></code> specifies the behavior of the save operation when data already exists, which
+takes the following values:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">append</span></code>: Append contents of this DataFrame to existing data.</li>
+<li><code class="docutils literal"><span class="pre">overwrite</span></code>: Overwrite existing data.</li>
+<li><code class="docutils literal"><span class="pre">ignore</span></code>: Silently ignore this operation if data already exists.</li>
+<li><code class="docutils literal"><span class="pre">error</span></code> (default case): Throw an exception if data already exists.</li>
+</ul>
+<p>Note that, the default file format is parquet file when the argument <code class="docutils literal"><span class="pre">format</span></code> is not specified.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">pyspark</span> <span class="kn">import</span> <span class="n">SparkConf</span><span class="p">,</span> <span class="n">SparkContext</span>
+<span class="kn">from</span> <span class="nn">pyspark.sql</span> <span class="kn">import</span> <span class="n">SQLContext</span>
+
+<span class="n">APPNAME</span> <span class="o">=</span> <span class="s">&#39;GeorgeApp&#39;</span>
+<span class="n">INPUT_FILE_PATH</span> <span class="o">=</span> <span class="s">&#39;hdfs://hadoop1:9000/user/tsungchih/test.csv&#39;</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">SparkConf</span><span class="p">()</span><span class="o">.</span><span class="n">setAppName</span><span class="p">(</span><span class="n">APPNAME</span><span class="p">)</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">conf</span> <span class="o">=</span> <span class="n">conf</span><span class="p">)</span>
+    <span class="n">sqlContext</span> <span class="o">=</span> <span class="n">SQLContext</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+
+    <span class="n">rdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">textFile</span><span class="p">(</span><span class="n">INPUT_FILE_PATH</span><span class="p">)</span>
+    <span class="n">tmpRdd</span> <span class="o">=</span> <span class="n">rdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">line</span><span class="p">:</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">))</span>\
+                <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">tup</span><span class="p">:</span> <span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;2006&quot;</span><span class="p">)</span>\
+                <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">tup</span><span class="p">:</span> <span class="p">(</span><span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">tup</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">sqlContext</span><span class="o">.</span><span class="n">createDataFrame</span><span class="p">(</span><span class="n">tmpRdd</span><span class="p">,</span> <span class="p">(</span><span class="s">&quot;year&quot;</span><span class="p">,</span> <span class="s">&quot;age&quot;</span><span class="p">))</span>
+    <span class="n">df</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="n">df</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s">&#39;result.dat&#39;</span><span class="p">,</span> <span class="n">mode</span> <span class="o">=</span> <span class="s">&#39;overwrite&#39;</span><span class="p">)</span>
+    <span class="n">df</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s">&#39;result.json&#39;</span><span class="p">,</span> <span class="n">mode</span> <span class="o">=</span> <span class="s">&#39;overwrite&#39;</span><span class="p">,</span> <span class="n">format</span> <span class="o">=</span> <span class="s">&#39;json&#39;</span><span class="p">)</span>
+
+    <span class="n">sc</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">SQLContext and DataFrame</a><ul>
+<li><a class="reference internal" href="#construct-distributed-dataframe-from-sqlcontext">Construct Distributed DataFrame from SQLContext</a></li>
+<li><a class="reference internal" href="#save-dataframe-to-files">Save DataFrame to Files</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Learning Apache Spark</a><ul>
+      <li>Previous: <a href="work_with_kv.html" title="previous chapter">Working with Key-Value Pairs</a></li>
+      <li>Next: <a href="../zeppelin/index.html" title="next chapter">Learning Apache Zeppelin</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/spark/sqlcontext.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, George T. C. Lai.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+      |
+      <a href="../_sources/spark/sqlcontext.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
